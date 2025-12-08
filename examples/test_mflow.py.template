@@ -1,0 +1,23 @@
+import mlflow
+import os
+
+# Set MLflow tracking URI
+mlflow.set_tracking_uri("http://localhost:30500")
+
+# Configure MinIO credentials
+# IMPORTANT: Use environment variables, not hardcoded values!
+# Set these before running:
+#   export AWS_ACCESS_KEY_ID="your-access-key"
+#   export AWS_SECRET_ACCESS_KEY="your-secret-key"
+os.environ["AWS_ACCESS_KEY_ID"] = os.getenv("AWS_ACCESS_KEY_ID", "")
+os.environ["AWS_SECRET_ACCESS_KEY"] = os.getenv("AWS_SECRET_ACCESS_KEY", "")
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://localhost:30900"
+
+# Create or use an existing experiment
+mlflow.set_experiment("test-experiment")
+
+# Start a run and log parameters and metrics
+with mlflow.start_run():
+    mlflow.log_param("param1", 5)
+    mlflow.log_metric("metric1", 0.85)
+    print("Run logged successfully!")

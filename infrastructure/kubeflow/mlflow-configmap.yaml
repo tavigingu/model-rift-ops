@@ -1,0 +1,19 @@
+# ConfigMap cu variabile de mediu pentru MLflow
+# Se va injecta automat în toate Notebook-urile din namespace-ul utilizatorului
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mlflow-env-config
+  namespace: tavi  # Înlocuiește cu namespace-ul tău de profile
+data:
+  # MLflow Tracking Server
+  MLFLOW_TRACKING_URI: "http://mlflow-service.mlflow.svc.cluster.local:5000"
+  
+  # MinIO (S3) pentru artefacte
+  MLFLOW_S3_ENDPOINT_URL: "http://minio.mlflow.svc.cluster.local:9000"
+  AWS_ACCESS_KEY_ID: "minioadmin"
+  AWS_SECRET_ACCESS_KEY: "minioadmin123"
+  
+  # Opțional: setări suplimentare
+  MLFLOW_EXPERIMENT_NAME: "default"

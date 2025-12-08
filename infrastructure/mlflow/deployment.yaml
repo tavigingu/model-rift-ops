@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mlflow
+  namespace: mlflow
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mlflow
+  template:
+    metadata:
+      labels:
+        app: mlflow
+    spec:
+      serviceAccountName: mlflow-sa
+      containers:
+      - name: mlflow
+        image: tavigingu/mlflow-custom:v1.0
+        imagePullPolicy: Always
+        ports:
+          - containerPort: 5000
+        env:
+          - name: MLFLOW_TRACKING_ALLOW_INSECURE_HOSTNAME
+            value: "true"
+          - name: MLFLOW_HOST
+            value: "0.0.0.0"
+          - name: MLFLOW_STATIC_PREFIX
+            value: "/mlflow"
+          - name: MLFLOW_SERVE_ARTIFACTS
+            value: "true"
+
+          - name: POSTGRES_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: mlflow-secret
+                key: POSTGRES_PASSWORD
+          - name: MLFLOW_S3_ENDPOINT_URL
+            value: "http://minio:9000"
+          - name: AWS_S3_ADDRESSING_STYLE
+            value: "path"
+          - name: AWS_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: mlflow-secret
+                key: AWS_ACCESS_KEY_ID
+          - name: AWS_SECRET_ACCESS_KEY
+            valueFrom:
+              secretKeyRef:
+                name: mlflow-secret
+                key: AWS_SECRET_ACCESS_KEY
+        command: ["sh", "-c"]
+        args:
+          - |
+            # Set environment variables with proper expansion
+            export MLFLOW_BACKEND_STORE_URI="postgresql+psycopg2://mlflow:${POSTGRES_PASSWORD}@mlflow-postgres:5432/mlflow_db"
+            export MLFLOW_DEFAULT_ARTIFACT_ROOT="s3://mlflow-bucket"
+            
+            # Start MLflow server with explicit allowed hosts
+            exec mlflow server \
+              --host=0.0.0.0 \
+              --port=5000 \
+              --backend-store-uri="${MLFLOW_BACKEND_STORE_URI}" \
+              --default-artifact-root="${MLFLOW_DEFAULT_ARTIFACT_ROOT}" \
+              --serve-artifacts \
+              --allowed-hosts="*"
+        resources:
+          requests:
+            memory: "512Mi"
+            cpu: "500m"
+          limits:
+            memory: "2Gi"
+            cpu: "1"

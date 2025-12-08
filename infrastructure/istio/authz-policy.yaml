@@ -1,0 +1,25 @@
+# Politică pentru a permite accesul la Istio Ingress Gateway
+---
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-ingress-gateway
+  namespace: istio-system
+spec:
+  selector:
+    matchLabels:
+      istio: ingressgateway
+  action: ALLOW
+  rules:
+  - {}  # Permite tot traficul către ingress gateway
+---
+# Politică pentru namespace-ul mlflow
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-all-mlflow
+  namespace: mlflow
+spec:
+  action: ALLOW
+  rules:
+  - {}
