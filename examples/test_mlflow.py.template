@@ -1,0 +1,134 @@
+#!/usr/bin/env python3
+"""
+MLflow Complete Integration Test
+Tests: PostgreSQL backend, MinIO artifact storage, Model Registry
+"""
+import mlflow
+import mlflow.sklearn
+import numpy as np
+from sklearn.linear_model import LogisticRegression
+import os
+import sys
+
+print("="*60)
+print("MLflow Integration Test - PostgreSQL + MinIO")
+print("="*60)
+
+# Configure MinIO credentials (from mlflow-secret)
+os.environ["AWS_ACCESS_KEY_ID"] = "minioadmin"
+os.environ["AWS_SECRET_ACCESS_KEY"] = "minioadmin123"
+os.environ["MLFLOW_S3_ENDPOINT_URL"] = "http://localhost:9000"
+
+# Set MLflow tracking URI (port-forward to 5000)
+mlflow.set_tracking_uri("http://localhost:5000")
+print(f"✓ MLflow Tracking URI: {mlflow.get_tracking_uri()}")
+print(f"✓ MinIO S3 Endpoint: {os.environ['MLFLOW_S3_ENDPOINT_URL']}")
+
+# Test 1: Create experiment (tests PostgreSQL)
+print("\n[Test 1] Creating experiment...")
+try:
+    experiment_name = "checkpoint-test"
+    experiment = mlflow.set_experiment(experiment_name)
+    print(f"✓ Experiment created: {experiment_name}")
+    print(f"  Experiment ID: {experiment.experiment_id}")
+except Exception as e:
+    print(f"✗ Failed to create experiment: {e}")
+    sys.exit(1)
+
+# Test 2: Log parameters and metrics (tests PostgreSQL)
+print("\n[Test 2] Logging parameters and metrics...")
+try:
+    with mlflow.start_run() as run:
+        # Log parameters
+        mlflow.log_param("learning_rate", 0.01)
+        mlflow.log_param("batch_size", 32)
+        
+        # Log metrics
+        mlflow.log_metric("accuracy", 0.95)
+        mlflow.log_metric("loss", 0.05)
+        
+        print(f"✓ Run created: {run.info.run_id}")
+        print(f"  Parameters and metrics logged successfully")
+except Exception as e:
+    print(f"✗ Failed to log params/metrics: {e}")
+    sys.exit(1)
+
+# Test 3: Log artifacts (tests MinIO S3 storage)
+print("\n[Test 3] Logging artifacts to MinIO...")
+try:
+    with mlflow.start_run() as run:
+        # Create a simple artifact file
+        artifact_path = "/tmp/test_artifact.txt"
+        with open(artifact_path, "w") as f:
+            f.write("Test artifact content\n")
+            f.write("This tests MinIO S3 storage integration\n")
+        
+        # Log artifact
+        mlflow.log_artifact(artifact_path)
+        print(f"✓ Artifact logged successfully")
+        print(f"  Run ID: {run.info.run_id}")
+        print(f"  Artifact URI: {run.info.artifact_uri}")
+except Exception as e:
+    print(f"✗ Failed to log artifact: {e}")
+    sys.exit(1)
+
+# Test 4: Train and log a model (tests Model Registry)
+print("\n[Test 4] Training and logging model...")
+try:
+    with mlflow.start_run() as run:
+        # Create simple dataset
+        X = np.random.rand(100, 5)
+        y = (X[:, 0] + X[:, 1] > 1).astype(int)
+        
+        # Train model
+        model = LogisticRegression(max_iter=100)
+        model.fit(X, y)
+        
+        # Log model
+        mlflow.sklearn.log_model(
+            model, 
+            "model",
+            registered_model_name="checkpoint-test-model"
+        )
+        
+        print(f"✓ Model trained and logged")
+        print(f"  Run ID: {run.info.run_id}")
+        print(f"  Model URI: {run.info.artifact_uri}/model")
+except Exception as e:
+    print(f"✗ Failed to log model: {e}")
+    sys.exit(1)
+
+# Test 5: Query experiments (tests PostgreSQL read)
+print("\n[Test 5] Querying experiments from PostgreSQL...")
+try:
+    client = mlflow.tracking.MlflowClient()
+    experiments = client.search_experiments()
+    print(f"✓ Found {len(experiments)} experiment(s):")
+    for exp in experiments[:3]:  # Show first 3
+        print(f"  - {exp.name} (ID: {exp.experiment_id})")
+except Exception as e:
+    print(f"✗ Failed to query experiments: {e}")
+    sys.exit(1)
+
+# Test 6: Query runs (tests PostgreSQL read)
+print("\n[Test 6] Querying runs from PostgreSQL...")
+try:
+    runs = client.search_runs(experiment_ids=[experiment.experiment_id])
+    print(f"✓ Found {len(runs)} run(s) in experiment '{experiment_name}'")
+    if runs:
+        latest_run = runs[0]
+        print(f"  Latest run ID: {latest_run.info.run_id}")
+        print(f"  Status: {latest_run.info.status}")
+except Exception as e:
+    print(f"✗ Failed to query runs: {e}")
+    sys.exit(1)
+
+print("\n" + "="*60)
+print("ALL TESTS PASSED! ✓")
+print("="*60)
+print("\nMLflow is fully integrated with:")
+print("  ✓ PostgreSQL (metadata storage)")
+print("  ✓ MinIO (artifact storage)")
+print("  ✓ Model Registry (model versioning)")
+print("\n✓ CHECKPOINT 1 COMPLETE - Ready for Kubeflow integration!")
+print("="*60)

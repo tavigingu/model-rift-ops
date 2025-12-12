@@ -32,6 +32,7 @@ ENV/
 **/secrets.yaml
 *.env
 .env.*
+!.env.example
 *.pem
 *.key
 *.crt
@@ -46,6 +47,10 @@ infrastructure/*/*-secrets.yaml
 flow.txt
 *.tmp
 *.temp
+
+# Test scripts (use templates instead)
+test_mlflow.py
+test_mlflow_complete.py  
 
 # OS
 .DS_Store
