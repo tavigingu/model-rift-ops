@@ -1,0 +1,18 @@
+# GitHub Linguist configuration
+# Force correct language detection for infrastructure-as-code project
+
+# Treat YAML files as configuration (not documentation)
+*.yaml linguist-language=YAML
+*.yml linguist-language=YAML
+
+# Shell scripts
+*.sh linguist-language=Shell
+
+# Python scripts
+*.py linguist-language=Python
+
+# Markdown documentation (exclude from language stats)
+*.md linguist-documentation
+
+# Templates are vendored (exclude from stats)
+*.template linguist-vendored
