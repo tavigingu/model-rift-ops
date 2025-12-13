@@ -1,0 +1,47 @@
+apiVersion: serving.kserve.io/v1beta1
+kind: InferenceService
+metadata:
+  name: fraud-detection
+  namespace: kubeflow-user-example-com
+  annotations:
+    sidecar.istio.io/inject: "true"
+spec:
+  predictor:
+    serviceAccountName: kserve-sa
+    model:
+      modelFormat:
+        name: mlflow
+        # Explicit version required by ClusterServingRuntime
+        # See: kubectl get clusterservingruntime kserve-mlserver
+        version: "1"
+      protocolVersion: "v2"
+      # Direct S3 path to model artifacts in MinIO
+      # Format: s3://<bucket>/<experiment-id>/<run-id>/artifacts/model
+      storageUri: "s3://mlflow-bucket/1/models/m-89290d7b6b034916a37ba734b272a672/artifacts"
+      resources:
+        requests:
+          cpu: 500m
+          memory: 1Gi
+        limits:
+          cpu: "1"
+          memory: 2Gi
+      env:
+        - name: AWS_ENDPOINT_URL
+          value: "http://minio.mlflow.svc.cluster.local:9000"
+        - name: AWS_ACCESS_KEY_ID
+          valueFrom:
+            secretKeyRef:
+              name: kserve-storage-secret
+              key: AWS_ACCESS_KEY_ID
+        - name: AWS_SECRET_ACCESS_KEY
+          valueFrom:
+            secretKeyRef:
+              name: kserve-storage-secret
+              key: AWS_SECRET_ACCESS_KEY
+        - name: AWS_DEFAULT_REGION
+          value: "us-east-1"
+        - name: S3_USE_HTTPS
+          value: "0"
+        - name: S3_VERIFY_SSL
+          value: "0"
+
