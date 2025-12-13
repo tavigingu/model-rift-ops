@@ -1,0 +1,27 @@
+apiVersion: kubeflow.org/v1alpha1
+kind: PodDefault
+metadata:
+  name: mlflow-config
+  namespace: kubeflow-user-example-com
+spec:
+  desc: "MLflow Configuration - Adds MLflow tracking server and MinIO credentials"
+  selector:
+    matchLabels:
+      mlflow-config: "true"
+  env:
+    - name: MLFLOW_TRACKING_URI
+      value: "http://mlflow-service.mlflow.svc.cluster.local:5000"
+    - name: MLFLOW_S3_ENDPOINT_URL
+      value: "http://minio.mlflow.svc.cluster.local:9000"
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: minio-credentials
+          key: MINIO_ACCESS_KEY
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: minio-credentials
+          key: MINIO_SECRET_KEY
+    - name: AWS_S3_ADDRESSING_STYLE
+      value: "path"

@@ -48,9 +48,10 @@ flow.txt
 *.tmp
 *.temp
 
-# Test scripts (use templates instead)
+# Test scripts and notebooks (use templates instead)
 test_mlflow.py
-test_mlflow_complete.py  
+test_mlflow_complete.py
+examples/mlflow_integration_test.ipynb  
 
 # OS
 .DS_Store
