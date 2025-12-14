@@ -1,28 +1,35 @@
-# ML Infrastructure on MicroK8s - MLflow + Kubeflow Integration
+# ML Infrastructure on MicroK8s - MLflow + Kubeflow + KServe
 
-**Production-ready MLOps platform combining MLflow experiment tracking with Kubeflow's ML workflow orchestration.**
+**Production-ready MLOps platform combining MLflow experiment tracking, Kubeflow orchestration, and KServe model serving.**
+
+---
+
+## 📸 Platform Overview
+
+### Kubeflow Dashboard with Jupyter Notebooks
+![Kubeflow Notebooks](assets/notebooks.png)
+
+### MLflow Experiment Tracking
+![MLflow UI](assets/mlflow.png)
+
+### KServe Model Endpoints
+![KServe Endpoints](assets/endpoints-kserve.png)
 
 ---
 
 ## 🎯 What's Deployed
 
 ✅ **Kubeflow v1.8** - Complete ML platform (notebooks, pipelines, katib, kserve)  
-✅ **MLflow** - Experiment tracking and model registry (integrated with Kubeflow)  
+✅ **MLflow 2.9.2** - Experiment tracking and model registry  
+✅ **KServe** - Model serving with sklearn predictor  
 ✅ **PostgreSQL 16** - MLflow metadata backend  
 ✅ **MinIO** - S3-compatible artifact storage  
 ✅ **Istio Gateway** - Unified ingress (NodePort 31178)  
 ✅ **Authentication** - Dex OIDC (user@example.com / 12341234)
 
----
+
 
 ## 🚀 Quick Start
-
-### Prerequisites
-
-- **MicroK8s** v1.32+ installed and running
-- **kubectl** configured for MicroK8s
-- **Minimum Resources**: 8GB RAM, 4 CPU cores, 50GB disk
-- **Required addons**: `dns`, `storage`, `metallb` (optional)
 
 ### Step 1: Deploy MLflow Stack
 
@@ -152,6 +159,56 @@ Check results in MLflow UI at `/mlflow/` path!
 
 ---
 
+## 🚀 KServe Model Deployment
+
+**Deploy trained models directly from notebooks using KServe Python SDK!**
+
+📓 **Complete workflow**: [`examples/kserve-deployment-demo.ipynb`](examples/kserve-deployment-demo.ipynb)
+
+### Quick Setup
+
+```bash
+# Create ServiceAccount with S3 credentials
+kubectl apply -f infrastructure/kserve/storage-secret.yaml
+kubectl apply -f infrastructure/kserve/serviceaccount.yaml
+```
+
+### Deploy in 4 Steps
+
+```python
+from kserve import KServeClient, V1beta1InferenceService
+import mlflow
+
+# 1. Train model with MLflow
+mlflow.set_tracking_uri(os.environ['MLFLOW_TRACKING_URI'])
+with mlflow.start_run() as run:
+    model.fit(X_train, y_train)
+    mlflow.sklearn.log_model(model, "model")
+    storage_uri = f"{run.info.artifact_uri}/model"
+
+# 2. Deploy with KServe SDK
+kserve_client = KServeClient()
+isvc = V1beta1InferenceService(...)
+kserve_client.create(isvc)
+
+# 3. Wait for ready
+kserve_client.wait_isvc_ready(name, namespace)
+
+# 4. Get predictions
+response = requests.post(endpoint, json={"instances": data})
+predictions = response.json()['predictions']
+```
+
+### Key Points
+
+✅ Uses environment variables from MLflow PodDefault  
+✅ KServe Python SDK (no YAML files needed)  
+✅ Direct MLflow artifact URIs  
+⚠️ Use **scikit-learn 1.2.2** for compatibility  
+⚠️ Enable **MLflow PodDefault** when creating notebook
+
+---
+
 ## 📁 Project Structure
 
 ```
@@ -180,14 +237,17 @@ ml-infrastructure/
 │   │   ├── secrets.yaml
 │   │   └── istio/
 │   │       └── virtualservice.yaml  # Routes /mlflow/ to MLflow service
-│   └── kubeflow/
-│       ├── mlflow-poddefault.yaml
-│       └── dashboard-mlflow-patch.json  # Adds MLflow tab to dashboard
+│   ├── kubeflow/
+│   │   ├── mlflow-poddefault.yaml
+│   │   └── dashboard-mlflow-patch.json  # Adds MLflow tab to dashboard
+│   └── kserve/                        # 🆕 Model serving setup
+│       ├── serviceaccount.yaml        # ServiceAccount with S3 credentials
+│       ├── storage-secret.yaml        # MinIO credentials for storage-initializer
+│       └── README.md                  # KServe documentation
 ├── scripts/
-│   └── deploy-all.sh           # Complete deployment automation
+│   └── deploy-all.sh                  # Complete deployment automation
 ├── examples/
-│   ├── test_mlflow_complete.py
-│   ├── test_mflow.py
+│   ├── kserve-deployment-demo.ipynb   # 🆕 Complete KServe workflow
 │   └── test_mflow.py.template
 ├── README.md
 └── .gitignore
@@ -197,34 +257,169 @@ ml-infrastructure/
 
 ## 🔧 Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Istio Gateway (NodePort)                  │
-│                 http://<node-ip>:31178                       │
-└────────────────────┬────────────────────────────────────────┘
-                     │
-        ┌────────────┴────────────┐
-        │                         │
-        ▼                         ▼
-┌──────────────┐          ┌──────────────┐
-│   Kubeflow   │          │    MLflow    │
-│   Dashboard  │◄────────►│      UI      │
-│              │          │   /mlflow/   │
-└──────┬───────┘          └──────┬───────┘
-       │                         │
-       │                         │
-       ▼                         ▼
-┌──────────────┐          ┌──────────────┐
-│   Jupyter    │          │  PostgreSQL  │
-│  Notebooks   │          │  + MinIO     │
-└──────────────┘          └──────────────┘
-       │                         │
-       └─────────┬───────────────┘
-                 │
-                 ▼
-          MLflow Tracking
-       (Experiments, Models)
+### High-Level Overview
+
+```mermaid
+graph TB
+    Gateway[🌐 Istio Gateway<br/>NodePort :31178]
+    
+    subgraph "Web Interfaces"
+        Dashboard[📊 Kubeflow Dashboard]
+        MLflowUI[📈 MLflow UI<br/>/mlflow/]
+    end
+    
+    subgraph "Compute"
+        Jupyter[📓 Jupyter Notebooks]
+    end
+    
+    subgraph "Data & Storage"
+        Postgres[🗄️ PostgreSQL<br/>MLflow Metadata]
+        Minio[📦 MinIO S3<br/>Model Artifacts]
+    end
+    
+    subgraph "Model Serving"
+        KServe[🚀 KServe InferenceService]
+        StorageInit[📥 storage-initializer<br/>Init Container]
+        Predictor[🤖 Predictor<br/>sklearn server]
+    end
+    
+    Gateway --> Dashboard
+    Gateway --> MLflowUI
+    Gateway --> KServe
+    
+    Dashboard --> Jupyter
+    MLflowUI -.-> Postgres
+    MLflowUI -.-> Minio
+    
+    Jupyter -->|Train & Log| Postgres
+    Jupyter -->|Save Models| Minio
+    Jupyter -->|Deploy via SDK| KServe
+    
+    KServe --> StorageInit
+    StorageInit -->|Download Model| Minio
+    StorageInit -->|Loads to /mnt/models| Predictor
+    Predictor -.->|Serves via HTTP| Gateway
+    
+    style Gateway fill:#e1f5ff,stroke:#01579b,stroke-width:3px
+    style KServe fill:#fff3e0,stroke:#e65100,stroke-width:2px
+    style Predictor fill:#f3e5f5,stroke:#4a148c,stroke-width:2px
+    style Minio fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
+    style Postgres fill:#e8f5e9,stroke:#1b5e20,stroke-width:2px
 ```
 
+### Detailed End-to-End Flow
+
+```mermaid
+sequenceDiagram
+    participant User as 👤 Data Scientist
+    participant Notebook as 📓 Jupyter Notebook
+    participant MLflow as 📈 MLflow API
+    participant Postgres as 🗄️ PostgreSQL
+    participant Minio as 📦 MinIO S3
+    participant KServe as 🚀 KServe API
+    participant K8s as ☸️ Kubernetes
+    participant InitC as 📥 storage-initializer
+    participant PredC as 🤖 Predictor Container
+    participant Client as 🌐 Client App
+
+    rect rgb(230, 245, 255)
+    Note over User,Minio: PHASE 1: TRAINING
+    User->>Notebook: Write training code
+    Notebook->>Notebook: model.fit(X_train, y_train)
+    Notebook->>MLflow: mlflow.log_params({...})
+    MLflow->>Postgres: Save metadata (run_id, params, metrics)
+    Notebook->>MLflow: mlflow.sklearn.log_model(model, "model")
+    MLflow->>Minio: Upload model artifacts<br/>(model.pkl, conda.yaml, MLmodel)
+    Minio-->>MLflow: artifact_uri: s3://mlflow-bucket/8/abc123/artifacts/model
+    MLflow-->>Notebook: run_id: abc123
+    end
+
+    rect rgb(255, 243, 230)
+    Note over User,K8s: PHASE 2: DEPLOYMENT
+    User->>Notebook: Deploy with KServe SDK
+    Notebook->>Notebook: isvc = V1beta1InferenceService(...)<br/>storageUri = artifact_uri
+    Notebook->>KServe: kserve_client.create(isvc)
+    KServe->>K8s: Create InferenceService CR
+    K8s->>K8s: Create Pod with 2 containers
+    
+    K8s->>InitC: Start init container
+    InitC->>InitC: Read ServiceAccount credentials<br/>(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+    InitC->>Minio: Download model from storageUri
+    Minio-->>InitC: model.pkl, conda.yaml, MLmodel
+    InitC->>InitC: Save to /mnt/models/
+    InitC->>InitC: Exit (completed) ✓
+    
+    K8s->>PredC: Start main container
+    PredC->>PredC: Load model from /mnt/models/
+    PredC->>PredC: Initialize sklearn server<br/>(scikit-learn==1.2.2)
+    PredC->>PredC: Start HTTP server on :8080
+    K8s->>K8s: Create Service (fraud-detection-predictor)
+    K8s-->>KServe: InferenceService READY ✓
+    KServe-->>Notebook: Deployment successful
+    end
+
+    rect rgb(232, 245, 233)
+    Note over Client,PredC: PHASE 3: INFERENCE
+    Client->>K8s: POST /v1/models/fraud-detection:predict<br/>{"instances": [[0.5, 1.2, ...]]}
+    K8s->>PredC: Forward request to :8080
+    PredC->>PredC: predictions = model.predict(features)
+    PredC-->>K8s: {"predictions": [0]}
+    K8s-->>Client: 200 OK<br/>{"predictions": [0]}
+    end
+```
+
+#### Key Components Explained
+
+**📦 PostgreSQL**
+- Stores MLflow experiment metadata ONLY
+- NOT involved in predictions
+- Contains: run_id, params, metrics, experiment tracking
+
+**📦 MinIO S3**
+- Stores actual model artifacts (model.pkl, conda.yaml, etc.)
+- Used in 2 phases:
+  1. Training: MLflow saves models here
+  2. Deployment: storage-initializer downloads from here
+
+**📥 storage-initializer**
+- Init container (runs once at pod startup)
+- Downloads model from MinIO to `/mnt/models/`
+- Exits after download completes
+
+**🤖 kserve-container (Predictor)**
+- Main container (runs continuously)
+- Loads model from `/mnt/models/`
+- Serves HTTP predictions on port 8080
+- Uses scikit-learn==1.2.2 for compatibility
+
+**☸️ Kubernetes Service**
+- Auto-created by KServe
+- Provides stable DNS endpoint
+- Load balances traffic to predictor pods
+
+**🔐 ServiceAccount (kserve-sa)**
+- Contains MinIO S3 credentials
+- Mounted to pod via serviceAccountName
+- Allows storage-initializer to authenticate
+
+**Complete Workflow Summary:**
+1. **Train** in Jupyter → MLflow logs to PostgreSQL (metadata) + MinIO (artifacts)
+2. **Deploy** with KServe SDK → Creates pod with 2 containers
+3. **Initialize** storage-initializer downloads model from MinIO once
+4. **Serve** kserve-container loads model and serves predictions continuously
+5. **Predict** any client sends HTTP POST → gets predictions back
+
 ---
+
+## 📚 Resources
+
+- [Kubeflow Documentation](https://www.kubeflow.org/docs/)
+- [MLflow Documentation](https://mlflow.org/docs/latest/index.html)
+- [KServe Documentation](https://kserve.github.io/website/)
+- [MicroK8s Documentation](https://microk8s.io/docs)
+- [Example Notebook](examples/kserve-deployment-demo.ipynb)
+
+---
+
+
 

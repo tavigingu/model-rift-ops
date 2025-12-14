@@ -19,72 +19,47 @@ The deployment is configured to address compatibility issues with models trained
 
 ## 📂 File Guide
 
-- **`storage-secret.yaml`** 🔐
-  - Contains MinIO user/password credentials.
+- **`storage-secret.yaml.template`** 🔐
+  - Template for MinIO credentials.
+  - **Setup**: Copy to `storage-secret.yaml` and update credentials.
   - **Purpose**: Enables KServe to authenticate and download model files from S3 storage.
 
 - **`serviceaccount.yaml`** 🆔
   - Defines the identity used by KServe pods within the cluster.
   - **Purpose**: Attaches the `storage-secret` to the pods, granting retrieval permissions.
 
-- **`inferenceservice.yaml`** 🤖
-  - Defines the model server and API configuration.
-  - **Configuration**:
-    - Specifies the **direct path** to model artifacts in MinIO.
-    - Configures the `mlflow` runtime environment.
-    - Sets the protocol version to `v2`.
-
 ---
 
-## 🚀 Quick Deployment
+## 🚀 Setup
 
 ```bash
-# Deploy all KServe resources automatically
-bash scripts/deploy-kserve.sh
-```
+# 1. Create storage secret from template
+cp infrastructure/kserve/storage-secret.yaml.template infrastructure/kserve/storage-secret.yaml
+# Edit storage-secret.yaml with your MinIO credentials
 
-## 🛠️ Manual Deployment Steps
-
-To deploy resources individually:
-
-```bash
-# 1. Create storage secret
+# 2. Apply resources
 kubectl apply -f infrastructure/kserve/storage-secret.yaml
-
-# 2. Create ServiceAccount
 kubectl apply -f infrastructure/kserve/serviceaccount.yaml
-
-# 3. Deploy InferenceService
-kubectl apply -f infrastructure/kserve/inferenceservice.yaml
-
-# 4. Check status
-kubectl get inferenceservices -n kubeflow-user-example-com
-kubectl get pods -n kubeflow-user-example-com | grep fraud-detection
 ```
+
+## 📓 Model Deployment
+
+Deploy models directly from notebooks using KServe Python SDK.
+
+See complete workflow: [`examples/kserve-deployment-demo.ipynb`](../../examples/kserve-deployment-demo.ipynb)
 
 ## 🧪 Testing
 
-Once deployed, the model can be tested using the provided Python script:
+Test the deployed model from within the notebook or using requests:
 
-```bash
-# 1. Open a tunnel to the service (in a separate terminal)
-kubectl port-forward -n kubeflow-user-example-com svc/fraud-detection-predictor-default 8080:80
+```python
+import requests
 
-# 2. Run the test script
-python3 examples/test_inference.py
+response = requests.post(
+    'http://fraud-detection-model-predictor.kubeflow-user-example-com.svc.cluster.local:80/v1/models/fraud-detection-model:predict',
+    json={'instances': [[0.5, 1.2, -0.3, ...]]}  # Your features
+)
+
+predictions = response.json()['predictions']
+print(f"Predictions: {predictions}")
 ```
-
-### Test Output Interpretation
-The test script sends 5 sample transactions (a mix of "normal-like" and "fraud-like" patterns).
-- **Low Probability** (e.g., 0.05): Indicates a normal transaction.
-- **High Probability** (e.g., 0.95): Indicates a fraudulent transaction.
-
-## 🔄 Updating the Model
-
-The InferenceService uses a direct S3 path to the model artifacts:
-`s3://mlflow-bucket/1/models/m-89290d7b6b034916a37ba734b272a672/artifacts`
-
-To update to a new model version:
-1.  Identify the new Run ID and Artifact path in the MLflow UI.
-2.  Update the `storageUri` field in `inferenceservice.yaml`.
-3.  Apply the changes: `kubectl apply -f infrastructure/kserve/inferenceservice.yaml`.

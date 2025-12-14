@@ -41,6 +41,7 @@ ENV/
 # Kubernetes secrets
 infrastructure/*/secrets.yaml
 infrastructure/*/*-secrets.yaml
+infrastructure/kserve/storage-secret.yaml
 
 # Logs and temporary files
 *.log
