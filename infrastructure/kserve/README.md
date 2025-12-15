@@ -2,35 +2,35 @@
 
 This directory contains the configuration to deploy the fraud detection model as a production API using KServe.
 
-## 🏗️ Architecture
+## Architecture
 
 The architecture establishes a bridge between the stored model in MLflow/MinIO and the production API:
 
 1.  **Storage (MinIO)**: The trained model artifacts are stored in the `mlflow-bucket`.
 2.  **Identity (ServiceAccount)**: KServe requires permissions to access MinIO for model downloading. A `ServiceAccount` is configured with a `Secret` containing the necessary credentials.
-3.  **Service (InferenceService)**: The inference service orchestrates the model deployment. It downloads the model artifacts, initializes the server (`mlserver`), and exposes an HTTP endpoint for predictions.
+3.  **Service (InferenceService)**: The inference service orchestates the model deployment. It downloads the model artifacts, initializes the server (`mlserver`), and exposes an HTTP endpoint for predictions.
 
-## ⚠️ Configuration Notes (NumPy Compatibility)
+## Configuration Notes (NumPy Compatibility)
 
 The deployment is configured to address compatibility issues with models trained using NumPy 2.0+. The default `sklearn-server` is replaced with the **MLflow Runtime (MLServer)**.
 
 - **Model Format**: `mlflow` (Version 1)
 - **Protocol**: `v2` (Modern KServe protocol)
 
-## 📂 File Guide
+## File Guide
 
-- **`storage-secret.yaml.template`** 🔐
+- **`storage-secret.yaml.template`**
   - Template for MinIO credentials.
   - **Setup**: Copy to `storage-secret.yaml` and update credentials.
   - **Purpose**: Enables KServe to authenticate and download model files from S3 storage.
 
-- **`serviceaccount.yaml`** 🆔
+- **`serviceaccount.yaml`**
   - Defines the identity used by KServe pods within the cluster.
   - **Purpose**: Attaches the `storage-secret` to the pods, granting retrieval permissions.
 
 ---
 
-## 🚀 Setup
+## Setup
 
 ```bash
 # 1. Create storage secret from template
@@ -42,13 +42,13 @@ kubectl apply -f infrastructure/kserve/storage-secret.yaml
 kubectl apply -f infrastructure/kserve/serviceaccount.yaml
 ```
 
-## 📓 Model Deployment
+## Model Deployment
 
 Deploy models directly from notebooks using KServe Python SDK.
 
 See complete workflow: [`examples/kserve-deployment-demo.ipynb`](../../examples/kserve-deployment-demo.ipynb)
 
-## 🧪 Testing
+## Testing
 
 Test the deployed model from within the notebook or using requests:
 
